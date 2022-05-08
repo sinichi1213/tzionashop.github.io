@@ -1,20 +1,4 @@
 <?php include 'includes/session.php'; ?>
-<?php
-  if(!isset($_GET['user'])){
-    header('location: users.php');
-    exit();
-  }
-  else{
-    $conn = $pdo->open();
-
-    $stmt = $conn->prepare("SELECT * FROM users WHERE id=:id");
-    $stmt->execute(['id'=>$_GET['user']]);
-    $user = $stmt->fetch();
-
-    $pdo->close();
-  }
-
-?>
 <?php include 'includes/header.php'; ?>
 <body class="hold-transition skin-blue sidebar-mini">
 <div class="wrapper">
@@ -27,12 +11,11 @@
     <!-- Content Header (Page header) -->
     <section class="content-header">
       <h1>
-        <?php echo $user['firstname'].' '.$user['lastname'].'`s Cart' ?>
+        Users
       </h1>
       <ol class="breadcrumb">
         <li><a href="#"><i class="fa fa-dashboard"></i> Home</a></li>
-        <li>Users</li>
-        <li class="active">Cart</li>
+        <li class="active">Users</li>
       </ol>
     </section>
 
@@ -64,14 +47,16 @@
         <div class="col-xs-12">
           <div class="box">
             <div class="box-header with-border">
-              <a href="#addnew" data-toggle="modal" id="add" data-id="<?php echo $user['id']; ?>" class="btn btn-primary btn-sm btn-flat"><i class="fa fa-plus"></i> New</a>
-              <a href="users.php" class="btn btn-sm btn-primary btn-flat"><i class="fa fa-arrow-left"></i> Users</a>
+              <a href="#addnew" data-toggle="modal" class="btn btn-primary btn-sm btn-flat"><i class="fa fa-plus"></i> New</a>
             </div>
             <div class="box-body">
               <table id="example1" class="table table-bordered">
                 <thead>
-                  <th>Product Name</th>
-                  <th>Quantity</th>
+                  <th>Photo</th>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Date Added</th>
                   <th>Tools</th>
                 </thead>
                 <tbody>
@@ -79,16 +64,29 @@
                     $conn = $pdo->open();
 
                     try{
-                      $stmt = $conn->prepare("SELECT *, cart.id AS cartid FROM cart LEFT JOIN products ON products.id=cart.product_id WHERE user_id=:user_id");
-                      $stmt->execute(['user_id'=>$user['id']]);
+                      $stmt = $conn->prepare("SELECT * FROM users WHERE type=:type");
+                      $stmt->execute(['type'=>0]);
                       foreach($stmt as $row){
+                        $image = (!empty($row['photo'])) ? '../images/'.$row['photo'] : '../images/profile.jpg';
+                        $status = ($row['status']) ? '<span class="label label-success">active</span>' : '<span class="label label-danger">not verified</span>';
+                        $active = (!$row['status']) ? '<span class="pull-right"><a href="#activate" class="status" data-toggle="modal" data-id="'.$row['id'].'"><i class="fa fa-check-square-o"></i></a></span>' : '';
                         echo "
                           <tr>
-                            <td>".$row['name']."</td>
-                            <td>".$row['quantity']."</td>
                             <td>
-                              <button class='btn btn-success btn-sm edit btn-flat' data-id='".$row['cartid']."'><i class='fa fa-edit'></i> Edit Quantity</button>
-                              <button class='btn btn-danger btn-sm delete btn-flat' data-id='".$row['cartid']."'><i class='fa fa-trash'></i> Delete</button>
+                              <img src='".$image."' height='30px' width='30px'>
+                              <span class='pull-right'><a href='#edit_photo' class='photo' data-toggle='modal' data-id='".$row['id']."'><i class='fa fa-edit'></i></a></span>
+                            </td>
+                            <td>".$row['email']."</td>
+                            <td>".$row['firstname'].' '.$row['lastname']."</td>
+                            <td>
+                              ".$status."
+                              ".$active."
+                            </td>
+                            <td>".date('M d, Y', strtotime($row['created_on']))."</td>
+                            <td>
+                              <a href='cart.php?user=".$row['id']."' class='btn btn-info btn-sm btn-flat'><i class='fa fa-search'></i> Cart</a>
+                              <button class='btn btn-success btn-sm edit btn-flat' data-id='".$row['id']."'><i class='fa fa-edit'></i> Edit</button>
+                              <button class='btn btn-danger btn-sm delete btn-flat' data-id='".$row['id']."'><i class='fa fa-trash'></i> Delete</button>
                             </td>
                           </tr>
                         ";
@@ -110,7 +108,7 @@
      
   </div>
   	<?php include 'includes/footer.php'; ?>
-    <?php include 'includes/cart_modal.php'; ?>
+    <?php include 'includes/users_modal.php'; ?>
 
 </div>
 <!-- ./wrapper -->
@@ -118,6 +116,7 @@
 <?php include 'includes/scripts.php'; ?>
 <script>
 $(function(){
+
   $(document).on('click', '.edit', function(e){
     e.preventDefault();
     $('#edit').modal('show');
@@ -132,41 +131,35 @@ $(function(){
     getRow(id);
   });
 
-  $('#add').click(function(e){
+  $(document).on('click', '.photo', function(e){
     e.preventDefault();
     var id = $(this).data('id');
-    getProducts(id);
+    getRow(id);
   });
 
-  $("#addnew").on("hidden.bs.modal", function () {
-      $('.append_items').remove();
+  $(document).on('click', '.status', function(e){
+    e.preventDefault();
+    var id = $(this).data('id');
+    getRow(id);
   });
 
 });
 
-function getProducts(id){
-  $.ajax({
-    type: 'POST',
-    url: 'products_all.php',
-    dataType: 'json',
-    success: function(response){
-      $('#product').append(response);
-      $('.userid').val(id);
-    }
-  });
-}
-
 function getRow(id){
   $.ajax({
     type: 'POST',
-    url: 'cart_row.php',
+    url: 'users_row.php',
     data: {id:id},
     dataType: 'json',
     success: function(response){
-      $('.cartid').val(response.cartid);
-      $('.userid').val(response.user_id);
-      $('.productname').html(response.name);
-      $('#edit_quantity').val(response.quantity);
+      $('.userid').val(response.id);
+      $('#edit_email').val(response.email);
+      $('#edit_password').val(response.password);
+      $('#edit_firstname').val(response.firstname);
+      $('#edit_lastname').val(response.lastname);
+      $('#edit_address').val(response.address);
+      $('#edit_contact').val(response.contact_info);
+      $('.fullname').html(response.firstname+' '+response.lastname);
     }
   });
 }
